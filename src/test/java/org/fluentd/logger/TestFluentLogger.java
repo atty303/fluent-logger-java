@@ -3,7 +3,6 @@ package org.fluentd.logger;
 import org.fluentd.logger.sender.Event;
 import org.fluentd.logger.sender.NullSender;
 import org.fluentd.logger.util.MockFluentd;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.msgpack.MessagePack;
 import org.msgpack.unpacker.Unpacker;
@@ -14,6 +13,8 @@ import java.io.BufferedInputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.net.Socket;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -72,6 +73,8 @@ public class TestFluentLogger {
 
         // start loggers
         FluentLogger logger = FluentLogger.getLogger("testtag", host, port);
+        MockErrorHandler errorHandler = new MockErrorHandler();
+        logger.setErrorHandler(errorHandler);
         {
             Map<String, Object> data = new HashMap<String, Object>();
             data.put("k1", "v1");
@@ -99,6 +102,11 @@ public class TestFluentLogger {
         assertEquals(2, elist.size());
         assertEquals("testtag.test01", elist.get(0).tag);
         assertEquals("testtag.test01", elist.get(1).tag);
+
+        assertEquals("error handler: connection", 0, errorHandler.connectionExceptions.size());
+        assertEquals("error handler: sending", 0, errorHandler.sendingExceptions.size());
+        assertEquals("error handler: serialization", 0, errorHandler.serializationExceptions.size());
+        assertEquals("error handler: bufferfull", 0, errorHandler.bufferFullExceptions.size());
     }
 
     @SuppressWarnings("unchecked")
@@ -233,6 +241,8 @@ public class TestFluentLogger {
             data.put("k2", "v2");
             logger.log("test01", data);
         }
+        MockErrorHandler errorHandler = new MockErrorHandler();
+        logger.setErrorHandler(errorHandler);
 
         TimeUnit.MILLISECONDS.sleep(500);
         _logger.info("Closing the current fluentd instance");
@@ -294,6 +304,18 @@ public class TestFluentLogger {
         assertEquals(2, elist2.size());
         assertEquals("testtag.test01", elist2.get(0).tag);
         assertEquals("testtag.test01", elist2.get(1).tag);
+
+        assertEquals("error handler: connection", 0, errorHandler.connectionExceptions.size());
+        assertEquals("error handler: sending", 1, errorHandler.sendingExceptions.size());
+        Event event = errorHandler.sendingExceptions.get(0).first;
+        IOException exception = errorHandler.sendingExceptions.get(0).second;
+        assertEquals("error handler: sending", "testtag.test01", event.tag);
+        assertEquals("error handler: sending", 2, event.data.size());
+        assertEquals("error handler: sending", "v3", event.data.get("k3"));
+        assertEquals("error handler: sending", "v4", event.data.get("k4"));
+        assertEquals("error handler: sending", SocketException.class, exception.getClass());
+        assertEquals("error handler: serialization", 0, errorHandler.serializationExceptions.size());
+        assertEquals("error handler: bufferfull", 0, errorHandler.bufferFullExceptions.size());
     }
 
     @Test
@@ -321,5 +343,45 @@ public class TestFluentLogger {
         }
 
         props.remove(Config.FLUENT_SENDER_CLASS);
+    }
+
+    @Test
+    public void testErrorHandlerConnection() throws Exception {
+        FluentLogger logger = FluentLogger.getLogger("prefix0", "192.0.2.1", 24224, 1 * 1000, 8 * 1024);
+        MockErrorHandler errorHandler = new MockErrorHandler();
+        logger.setErrorHandler(errorHandler);
+        logger.log("tag0", "key0", "val0", 100000000);
+        logger.close();
+
+        assertEquals("error handler: connection", 1, errorHandler.connectionExceptions.size());
+        Event event = errorHandler.connectionExceptions.get(0).first;
+        IOException exception = errorHandler.connectionExceptions.get(0).second;
+        assertEquals("error handler: connection", "prefix0.tag0", event.tag);
+        assertEquals("error handler: connection", 100000000, event.timestamp);
+        assertEquals("error handler: connection", 1, event.data.size());
+        assertEquals("error handler: connection", "val0", event.data.get("key0"));
+        assertEquals("error handler: connection", SocketTimeoutException.class, exception.getClass());
+        assertEquals("error handler: sending", 0, errorHandler.sendingExceptions.size());
+        assertEquals("error handler: serialization", 0, errorHandler.serializationExceptions.size());
+        assertEquals("error handler: bufferfull", 0, errorHandler.bufferFullExceptions.size());
+    }
+
+    @Test
+    public void testErrorHandlerBufferFull() throws Exception {
+        FluentLogger logger = FluentLogger.getLogger("prefix0", "localhost", 24224, 3 * 1000, 1);
+        MockErrorHandler errorHandler = new MockErrorHandler();
+        logger.setErrorHandler(errorHandler);
+        logger.log("tag0", "key0", "val0", 100000000);
+        logger.close();
+
+        assertEquals("error handler: connection", 0, errorHandler.connectionExceptions.size());
+        assertEquals("error handler: sending", 0, errorHandler.sendingExceptions.size());
+        assertEquals("error handler: serialization", 0, errorHandler.serializationExceptions.size());
+        assertEquals("error handler: bufferfull", 1, errorHandler.bufferFullExceptions.size());
+        Event event = errorHandler.bufferFullExceptions.get(0);
+        assertEquals("error handler: bufferfull", "prefix0.tag0", event.tag);
+        assertEquals("error handler: bufferfull", 100000000, event.timestamp);
+        assertEquals("error handler: bufferfull", 1, event.data.size());
+        assertEquals("error handler: bufferfull", "val0", event.data.get("key0"));
     }
 }

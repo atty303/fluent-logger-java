@@ -27,13 +27,10 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
-import java.util.Map;
 
-public class RawSocketSender implements Sender {
+public class RawSocketSender extends AbstractSender implements Sender {
 
     private static final Logger LOG = LoggerFactory.getLogger(RawSocketSender.class);
-
-    private MessagePack msgpack;
 
     private SocketAddress server;
 
@@ -42,10 +39,6 @@ public class RawSocketSender implements Sender {
     private int timeout;
 
     private BufferedOutputStream out;
-
-    private ByteBuffer pendings;
-
-    private Reconnector reconnector;
 
     private String name;
 
@@ -58,32 +51,19 @@ public class RawSocketSender implements Sender {
     }
 
     public RawSocketSender(String host, int port, int timeout, int bufferCapacity) {
-        this(host, port, timeout, bufferCapacity, new ExponentialDelayReconnector());
+        this(host, port, timeout, bufferCapacity, null);
 
     }
 
     public RawSocketSender(String host, int port, int timeout, int bufferCapacity, Reconnector reconnector) {
-        msgpack = new MessagePack();
-        msgpack.register(Event.class, Event.EventTemplate.INSTANCE);
-        pendings = ByteBuffer.allocate(bufferCapacity);
+        super(bufferCapacity, reconnector);
         server = new InetSocketAddress(host, port);
-        this.reconnector = reconnector;
         name = String.format("%s_%d_%d_%d", host, port, timeout, bufferCapacity);
         this.timeout = timeout;
-        open();
     }
 
-    private void open() {
-        try {
-            connect();
-        } catch (IOException e) {
-            LOG.error("Failed to connect fluentd: " + server.toString(), e);
-            LOG.warn("Connection will be retried");
-            close();
-        }
-    }
-
-    private void connect() throws IOException {
+    @Override
+    protected void connect() throws IOException {
         try {
             socket = new Socket();
             socket.connect(server, timeout);
@@ -93,16 +73,19 @@ public class RawSocketSender implements Sender {
         }
     }
 
-    private void reconnect(boolean forceReconnection) throws IOException {
-        if (socket == null) {
-            connect();
-        } else if (forceReconnection || socket.isClosed() || (!socket.isConnected())) {
-            close();
-            connect();
-        }
+    @Override
+    protected boolean shouldConnect() {
+        return (socket == null || socket.isClosed() || (!socket.isConnected()));
     }
 
-    public void close() {
+    @Override
+    protected void write(byte[] buffer) throws IOException {
+        out.write(buffer);
+        out.flush();
+    }
+
+    @Override
+    protected void disconnect() {
         // close output stream
         if (out != null) {
             try {
@@ -124,84 +107,13 @@ public class RawSocketSender implements Sender {
         }
     }
 
-    public boolean emit(String tag, Map<String, Object> data) {
-        return emit(tag, System.currentTimeMillis() / 1000, data);
-    }
-
-    public boolean emit(String tag, long timestamp, Map<String, Object> data) {
-        return emit(new Event(tag, timestamp, data));
-    }
-
-    protected boolean emit(Event event) {
-        if (LOG.isTraceEnabled()) {
-            LOG.trace(String.format("Created %s", new Object[]{event}));
-        }
-
-        byte[] bytes = null;
-        try {
-            // serialize tag, timestamp and data
-            bytes = msgpack.write(event);
-        } catch (IOException e) {
-            LOG.error("Cannot serialize event: " + event, e);
-            return false;
-        }
-
-        // send serialized data
-        return send(bytes);
-    }
-
-    private synchronized boolean send(byte[] bytes) {
-        // buffering
-        if (pendings.position() + bytes.length > pendings.capacity()) {
-            LOG.error("Cannot send logs to " + server.toString());
-            return false;
-        }
-        pendings.put(bytes);
-
-        // suppress reconnection burst
-        if (!reconnector.enableReconnection(System.currentTimeMillis())) {
-            return true;
-        }
-
-        // send pending data
-        flush();
-
-        return true;
-    }
-
-    public synchronized void flush() {
-        try {
-            // check whether connection is established or not
-            reconnect(!reconnector.isErrorHistoryEmpty());
-            // write data
-            out.write(getBuffer());
-            out.flush();
-            clearBuffer();
-            reconnector.clearErrorHistory();
-        } catch (IOException e) {
-            LOG.error(this.getClass().getName(), "flush", e);
-            reconnector.addErrorHistory(System.currentTimeMillis());
-        }
-    }
-
-    public byte[] getBuffer() {
-        int len = pendings.position();
-        pendings.position(0);
-        byte[] ret = new byte[len];
-        pendings.get(ret, 0, len);
-        return ret;
-    }
-
-    private void clearBuffer() {
-        pendings.clear();
-    }
-
-    public String getName() {
-        return name;
+    @Override
+    protected String getDestinationName() {
+        return server.toString();
     }
 
     @Override
-    public String toString() {
-        return getName();
+    public String getName() {
+        return name;
     }
 }

@@ -71,6 +71,14 @@ public class FluentLogger {
         this.sender = sender;
     }
 
+    public void setErrorHandler(ErrorHandler errorHandler) {
+        sender.setErrorHandler(errorHandler);
+    }
+
+    public ErrorHandler getErrorHandler() {
+        return sender.getErrorHandler();
+    }
+
     public boolean log(String tag, String key, Object value) {
         return log(tag, key, value, 0);
     }

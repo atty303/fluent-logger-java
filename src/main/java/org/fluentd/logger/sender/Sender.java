@@ -17,6 +17,8 @@
 //
 package org.fluentd.logger.sender;
 
+import org.fluentd.logger.ErrorHandler;
+
 import java.util.Map;
 
 public interface Sender {
@@ -31,4 +33,8 @@ public interface Sender {
     public void close();
 
     public String getName();
+
+    public void setErrorHandler(ErrorHandler errorHandler);
+
+    public ErrorHandler getErrorHandler();
 }
