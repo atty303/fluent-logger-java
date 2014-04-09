@@ -118,7 +118,7 @@ public abstract class AbstractSender implements Sender {
             LOG.error("Cannot serialize event: " + event, e);
             try {
                 if (errorHandler != null) {
-                    errorHandler.onSerializationException(event);
+                    errorHandler.onSerializationException(event, e);
                 }
             } catch (Exception e1){
                 LOG.warn("Error handling failed (serialization)", e1);
@@ -136,7 +136,7 @@ public abstract class AbstractSender implements Sender {
             LOG.error("Cannot send logs to " + getDestinationName());
             try {
                 if (errorHandler != null) {
-                    errorHandler.onBufferFullException(event);
+                    errorHandler.onBufferFull(event);
                 }
             } catch (Exception e1){
                 LOG.warn("Error handling failed (buffer full)", e1);

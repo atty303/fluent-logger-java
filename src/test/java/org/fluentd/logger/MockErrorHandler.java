@@ -9,8 +9,8 @@ import java.util.List;
 public class MockErrorHandler implements ErrorHandler {
     public volatile List<Tuple<Event, IOException>> connectionExceptions = new LinkedList();
     public volatile List<Tuple<Event, IOException>> sendingExceptions = new LinkedList();
-    public volatile List<Event> bufferFullExceptions = new LinkedList();
-    public volatile List<Event> serializationExceptions = new LinkedList();
+    public volatile List<Tuple<Event, IOException>> serializationExceptions = new LinkedList();
+    public volatile List<Event> bufferFulls = new LinkedList();
 
     public static class Tuple<FST, SND> {
         public FST first;
@@ -24,27 +24,27 @@ public class MockErrorHandler implements ErrorHandler {
     public void clearAll() {
         connectionExceptions.clear();
         sendingExceptions.clear();
-        bufferFullExceptions.clear();
         serializationExceptions.clear();
+        bufferFulls.clear();
     }
 
     @Override
-    public void onConnectionException(Event eventNullable, IOException e) {
-        connectionExceptions.add(new Tuple(eventNullable, e));
+    public void onConnectionException(Event event, IOException exception) {
+        connectionExceptions.add(new Tuple(event, exception));
     }
 
     @Override
-    public void onSendingException(Event eventNullable, IOException e) {
-        sendingExceptions.add(new Tuple(eventNullable, e));
+    public void onSendingException(Event event, IOException exception) {
+        sendingExceptions.add(new Tuple(event, exception));
     }
 
     @Override
-    public void onBufferFullException(Event lastEvent) {
-        bufferFullExceptions.add(lastEvent);
+    public void onSerializationException(Event event, IOException exception) {
+        serializationExceptions.add(new Tuple(event, exception));
     }
 
     @Override
-    public void onSerializationException(Event event) {
-        serializationExceptions.add(event);
+    public void onBufferFull(Event event) {
+        bufferFulls.add(event);
     }
 }

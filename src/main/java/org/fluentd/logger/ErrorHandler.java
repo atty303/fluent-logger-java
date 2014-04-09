@@ -5,11 +5,11 @@ import org.fluentd.logger.sender.Event;
 import java.io.IOException;
 
 public interface ErrorHandler {
-    void onConnectionException(Event e, IOException eventNullable);
+    void onConnectionException(Event event, IOException exception);
 
-    void onSendingException(Event e, IOException eventNullable);
+    void onSendingException(Event event, IOException exception);
 
-    void onBufferFullException(Event lastEvent);
-
-    void onSerializationException(Event event);
+    void onSerializationException(Event event, IOException exception);
+    
+    void onBufferFull(Event event);
 }

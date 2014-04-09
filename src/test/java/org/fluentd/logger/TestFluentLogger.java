@@ -106,7 +106,7 @@ public class TestFluentLogger {
         assertEquals("error handler: connection", 0, errorHandler.connectionExceptions.size());
         assertEquals("error handler: sending", 0, errorHandler.sendingExceptions.size());
         assertEquals("error handler: serialization", 0, errorHandler.serializationExceptions.size());
-        assertEquals("error handler: bufferfull", 0, errorHandler.bufferFullExceptions.size());
+        assertEquals("error handler: bufferfull", 0, errorHandler.bufferFulls.size());
     }
 
     @SuppressWarnings("unchecked")
@@ -315,7 +315,7 @@ public class TestFluentLogger {
         assertEquals("error handler: sending", "v4", event.data.get("k4"));
         assertEquals("error handler: sending", SocketException.class, exception.getClass());
         assertEquals("error handler: serialization", 0, errorHandler.serializationExceptions.size());
-        assertEquals("error handler: bufferfull", 0, errorHandler.bufferFullExceptions.size());
+        assertEquals("error handler: bufferfull", 0, errorHandler.bufferFulls.size());
     }
 
     @Test
@@ -363,7 +363,7 @@ public class TestFluentLogger {
         assertEquals("error handler: connection", SocketTimeoutException.class, exception.getClass());
         assertEquals("error handler: sending", 0, errorHandler.sendingExceptions.size());
         assertEquals("error handler: serialization", 0, errorHandler.serializationExceptions.size());
-        assertEquals("error handler: bufferfull", 0, errorHandler.bufferFullExceptions.size());
+        assertEquals("error handler: bufferfull", 0, errorHandler.bufferFulls.size());
     }
 
     @Test
@@ -377,8 +377,8 @@ public class TestFluentLogger {
         assertEquals("error handler: connection", 0, errorHandler.connectionExceptions.size());
         assertEquals("error handler: sending", 0, errorHandler.sendingExceptions.size());
         assertEquals("error handler: serialization", 0, errorHandler.serializationExceptions.size());
-        assertEquals("error handler: bufferfull", 1, errorHandler.bufferFullExceptions.size());
-        Event event = errorHandler.bufferFullExceptions.get(0);
+        assertEquals("error handler: bufferfull", 1, errorHandler.bufferFulls.size());
+        Event event = errorHandler.bufferFulls.get(0);
         assertEquals("error handler: bufferfull", "prefix0.tag0", event.tag);
         assertEquals("error handler: bufferfull", 100000000, event.timestamp);
         assertEquals("error handler: bufferfull", 1, event.data.size());
