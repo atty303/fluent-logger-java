@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import java.io.BufferedInputStream;
 import java.io.EOFException;
 import java.io.IOException;
+import java.lang.ref.SoftReference;
 import java.net.Socket;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
@@ -308,7 +309,7 @@ public class TestFluentLogger {
         FluentLogger.getLogger("tag2");
         FluentLogger.getLogger("tag3");
 
-        Map<String, FluentLogger> loggers;
+        Map<String, SoftReference<FluentLogger>> loggers;
         {
             loggers = FluentLogger.getLoggers();
             assertEquals(3, loggers.size());
@@ -345,7 +346,7 @@ public class TestFluentLogger {
     }
 
     @Test
-    public void testGetLoggerShouldReturnDifferInstanceIfNotExistsStrongReferenceToLoggerDuringRunsGC() throws Exception {
+    public void testGetLoggerShouldReturnSameInstanceIfNotExistsStrongReferenceToLoggerDuringRunsGC() throws Exception {
         // use NullSender
         Properties props = System.getProperties();
         props.setProperty(Config.FLUENT_SENDER_CLASS, NullSender.class.getName());
@@ -358,7 +359,7 @@ public class TestFluentLogger {
         // get a same logger
         int logger2Identity = System.identityHashCode(FluentLogger.getLogger("tag"));
 
-        assertTrue(logger1Identity != logger2Identity);
+        assertTrue(logger1Identity == logger2Identity);
 
         props.remove(Config.FLUENT_SENDER_CLASS);
     }

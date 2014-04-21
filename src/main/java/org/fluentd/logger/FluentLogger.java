@@ -17,6 +17,7 @@
 //
 package org.fluentd.logger;
 
+import java.lang.ref.SoftReference;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -47,7 +48,7 @@ public class FluentLogger {
     /**
      * the method is for testing
      */
-    static Map<String, FluentLogger> getLoggers() {
+    static Map<String, SoftReference<FluentLogger>> getLoggers() {
         return factory.getLoggers();
     }
 

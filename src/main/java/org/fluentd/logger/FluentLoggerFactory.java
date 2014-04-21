@@ -17,11 +17,12 @@
 //
 package org.fluentd.logger;
 
+import java.lang.ref.SoftReference;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
-import java.util.WeakHashMap;
 
 import org.fluentd.logger.sender.ExponentialDelayReconnector;
 import org.fluentd.logger.sender.RawSocketSender;
@@ -30,10 +31,10 @@ import org.fluentd.logger.sender.Sender;
 
 public class FluentLoggerFactory {
 
-    private final Map<String, FluentLogger> loggers;
+    private final Map<String, SoftReference<FluentLogger>> loggers;
 
     public FluentLoggerFactory() {
-        loggers = new WeakHashMap<String, FluentLogger>();
+        loggers = new HashMap<String, SoftReference<FluentLogger>>();
     }
 
     public FluentLogger getLogger(String tagPrefix) {
@@ -51,26 +52,30 @@ public class FluentLoggerFactory {
     public synchronized FluentLogger getLogger(String tagPrefix, String host, int port, int timeout, int bufferCapacity,
             Reconnector reconnector) {
         String key = String.format("%s_%s_%d_%d_%d", new Object[] { tagPrefix, host, port, timeout, bufferCapacity });
-        if (loggers.containsKey(key)) {
-            return loggers.get(key);
-        } else {
-            Sender sender = null;
-            Properties props = System.getProperties();
-            if (!props.containsKey(Config.FLUENT_SENDER_CLASS)) {
-                // create default sender object
-                sender = new RawSocketSender(host, port, timeout, bufferCapacity, reconnector);
-            } else {
-                String senderClassName = props.getProperty(Config.FLUENT_SENDER_CLASS);
-                try {
-                    sender = createSenderInstance(senderClassName, new Object[] { host, port, timeout, bufferCapacity });
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
+        SoftReference<FluentLogger> loggerRef = loggers.get(key);
+        if (loggerRef != null) {
+            FluentLogger logger = loggerRef.get();
+            if (logger != null) {
+                return logger;
             }
-            FluentLogger logger = new FluentLogger(tagPrefix, sender);
-            loggers.put(key, logger);
-            return logger;
         }
+
+        Sender sender = null;
+        Properties props = System.getProperties();
+        if (!props.containsKey(Config.FLUENT_SENDER_CLASS)) {
+            // create default sender object
+            sender = new RawSocketSender(host, port, timeout, bufferCapacity, reconnector);
+        } else {
+            String senderClassName = props.getProperty(Config.FLUENT_SENDER_CLASS);
+            try {
+                sender = createSenderInstance(senderClassName, new Object[] { host, port, timeout, bufferCapacity });
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+        FluentLogger logger = new FluentLogger(tagPrefix, sender);
+        loggers.put(key, new SoftReference<FluentLogger>(logger));
+        return logger;
     }
 
     @SuppressWarnings("unchecked")
@@ -86,20 +91,27 @@ public class FluentLoggerFactory {
     /**
      * the method is for testing
      */
-    Map<String, FluentLogger> getLoggers() {
+    Map<String, SoftReference<FluentLogger>> getLoggers() {
         return loggers;
     }
 
     public synchronized void closeAll() {
-        for (FluentLogger logger : loggers.values()) {
-            logger.close();
+        for (SoftReference<FluentLogger> loggerRef : loggers.values()) {
+            FluentLogger logger = loggerRef.get();
+            if (logger != null) {
+                logger.close();
+                loggerRef.clear();
+            }
         }
         loggers.clear();
     }
 
     public synchronized void flushAll() {
-        for (FluentLogger logger : loggers.values()) {
-            logger.flush();
+        for (SoftReference<FluentLogger> loggerRef : loggers.values()) {
+            FluentLogger logger = loggerRef.get();
+            if (logger != null) {
+                logger.flush();
+            }
         }
     }
 
