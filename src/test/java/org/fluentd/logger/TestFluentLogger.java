@@ -20,6 +20,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class TestFluentLogger {
     private Logger _logger = LoggerFactory.getLogger(TestFluentLogger.class);
@@ -322,4 +323,44 @@ public class TestFluentLogger {
 
         props.remove(Config.FLUENT_SENDER_CLASS);
     }
+
+    @Test
+    public void testGetLoggerShouldReturnSameInstanceIfExistsStrongReferenceToLoggerDuringRunsGC() throws Exception {
+        // use NullSender
+        Properties props = System.getProperties();
+        props.setProperty(Config.FLUENT_SENDER_CLASS, NullSender.class.getName());
+
+        // get a logger and hold strong reference to it
+        FluentLogger logger1 = FluentLogger.getLogger("tag");
+        int logger1Identity = System.identityHashCode(FluentLogger.getLogger("tag"));
+
+        System.gc();
+
+        // get a same logger
+        int logger2Identity = System.identityHashCode(FluentLogger.getLogger("tag"));
+
+        assertTrue(logger1Identity == logger2Identity);
+
+        props.remove(Config.FLUENT_SENDER_CLASS);
+    }
+
+    @Test
+    public void testGetLoggerShouldReturnDifferInstanceIfNotExistsStrongReferenceToLoggerDuringRunsGC() throws Exception {
+        // use NullSender
+        Properties props = System.getProperties();
+        props.setProperty(Config.FLUENT_SENDER_CLASS, NullSender.class.getName());
+
+        // get a logger and does not hold reference to it
+        int logger1Identity = System.identityHashCode(FluentLogger.getLogger("tag"));
+
+        System.gc();
+
+        // get a same logger
+        int logger2Identity = System.identityHashCode(FluentLogger.getLogger("tag"));
+
+        assertTrue(logger1Identity != logger2Identity);
+
+        props.remove(Config.FLUENT_SENDER_CLASS);
+    }
+
 }
